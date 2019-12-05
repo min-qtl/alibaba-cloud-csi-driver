@@ -62,6 +62,8 @@ const (
 	LinearType = "linear"
 	// StripingType striping type
 	StripingType = "striping"
+	//ThinpoolType thinpool type
+	ThinpoolType = "thinpool"
 	// DefaultFs default fs
 	DefaultFs = "ext4"
 	// DefaultNA default NodeAffinity
@@ -418,6 +420,14 @@ func (ns *nodeServer) createVolume(ctx context.Context, volumeID, vgName, pvType
 			return err
 		}
 		log.Infof("Successful Create Linear LVM volume: %s, Size: %d%s, vgName: %s", volumeID, pvSize, unit, vgName)
+	}else if lvmType == ThinpoolType {
+		//cmd := fmt.Sprintf("%s lvcreate -n %s -L %d%s %s", NsenterCmd, volumeID, pvSize, unit, vgName)
+		cmd := fmt.Sprintf("%s lvcreate -V %d%s --thin -n %s %s", NsenterCmd,  pvSize, unit,volumeID, vgName)
+		_, err = utils.Run(cmd)
+		if err != nil {
+			return err
+		}
+		log.Infof("Successful Create Thinpool LVM volume: %s, Size: %d%s, vgName: %s", volumeID, pvSize, unit, vgName)
 	}
 	return nil
 }

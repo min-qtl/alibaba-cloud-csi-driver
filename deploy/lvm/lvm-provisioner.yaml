@@ -29,6 +29,7 @@ spec:
       labels:
         app: csi-lvm-provisioner
     spec:
+      hostNetwork: true
       tolerations:
       - operator: Exists
       affinity:
@@ -41,6 +42,8 @@ spec:
                 operator: Exists
       priorityClassName: system-node-critical
       serviceAccount: admin
+      imagePullSecrets:
+      - name: myregistrykey
       containers:
         - name: csi-provisioner
           image: registry.cn-hangzhou.aliyuncs.com/acs/csi-provisioner:v1.2.2
@@ -53,6 +56,10 @@ spec:
           env:
             - name: ADDRESS
               value: /var/lib/kubelet/plugins/lvmplugin.csi.alibabacloud.com/csi.sock
+            - name: KUBERNETES_SERVICE_HOST
+              value: apiserver请求地址
+            - name: KUBERNETES_SERVICE_PORT
+              value: "443"
           imagePullPolicy: "IfNotPresent"
           volumeMounts:
             - name: socket-dir

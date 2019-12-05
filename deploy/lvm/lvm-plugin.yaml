@@ -25,6 +25,8 @@ spec:
       priorityClassName: system-node-critical
       hostNetwork: true
       hostPID: true
+      imagePullSecrets:
+      - name: myregistrykey
       containers:
         - name: driver-registrar
           image: registry.cn-hangzhou.aliyuncs.com/acs/csi-node-driver-registrar:v1.1.0
@@ -48,14 +50,13 @@ spec:
               mountPath: /csi
             - name: registration-dir
               mountPath: /registration
-
         - name: csi-lvmplugin
           securityContext:
             privileged: true
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: registry.cn-hangzhou.aliyuncs.com/acs/csi-lvmplugin:v1.14.8.18-cef5abe-aliyun
+          image: registry-qcc.quantil.com/qcc/csi-lvmplugin:v1.14
           imagePullPolicy: "Always"
           args :
             - "--endpoint=$(CSI_ENDPOINT)"
