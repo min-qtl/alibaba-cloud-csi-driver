@@ -7,7 +7,7 @@ parameters:
     vgName: qcc
     fsType: ext4
     pvType: localdisk
-    lvmType: linear
+    lvmType: thinpool
     nodeAffinity: "false"
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer

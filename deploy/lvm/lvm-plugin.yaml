@@ -71,6 +71,10 @@ spec:
                   fieldPath: spec.nodeName
             - name: CSI_ENDPOINT
               value: unix://var/lib/kubelet/plugins/lvmplugin.csi.alibabacloud.com/csi.sock
+            - name: KUBERNETES_SERVICE_HOST
+              value: apiserver请求地址
+            - name: KUBERNETES_SERVICE_PORT
+              value: "443"
           volumeMounts:
             - name: pods-mount-dir
               mountPath: /var/lib/kubelet
