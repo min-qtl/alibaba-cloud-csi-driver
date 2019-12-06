@@ -71,6 +71,8 @@ const (
 	DefaultNA = "true"
 	// TopologyNodeKey tag
 	TopologyNodeKey = "topology.lvmplugin.csi.quantil.com/hostname"
+
+	LvmScheduleNode = "quantil.com/schedulerNode"
 )
 
 type nodeServer struct {
@@ -117,20 +119,22 @@ func NewNodeServer(d *csicommon.CSIDriver, nodeID string) csi.NodeServer {
 					case *v1.PersistentVolume:
 						persistentVolume := evt.Object.(*v1.PersistentVolume)
 						persistentVolumeInThisNode := false
-						if persistentVolume.Spec.NodeAffinity != nil {
-							for _,nodeSelectorTerm := range persistentVolume.Spec.NodeAffinity.Required.NodeSelectorTerms {
-								for _,matchExpression := range nodeSelectorTerm.MatchExpressions {
-									if matchExpression.Key == TopologyNodeKey {
-										for _,matchValue := range matchExpression.Values {
-											persistentVolumeInThisNode = nodeID == matchValue
-										}
+						if persistentVolume.Annotations!=nil {
+							if scheduleNodesAnnotation,found := persistentVolume.Annotations[LvmScheduleNode];found {
+								var scheduleNodes []string
+								json.Unmarshal([]byte(scheduleNodesAnnotation),&scheduleNodes)
+								for _,scheduleNode := range scheduleNodes {
+									if scheduleNode == nodeID {
+										persistentVolumeInThisNode = true
+										break
 									}
 								}
 							}
 
-							lvName := persistentVolume.Spec.CSI.VolumeHandle
-							vgName := persistentVolume.Spec.CSI.VolumeAttributes["vgName"]
 							if persistentVolumeInThisNode {
+
+								lvName := persistentVolume.Spec.CSI.VolumeHandle
+								vgName := persistentVolume.Spec.CSI.VolumeAttributes["vgName"]
 								cmd := fmt.Sprintf("%s lvremove /dev/%s/%s -f", NsenterCmd, vgName, lvName)
 								_, err = utils.Run(cmd)
 								if err != nil {
@@ -253,8 +257,10 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	}
 
 	// upgrade PV with NodeAffinity
+
+	oldPv, err := ns.client.CoreV1().PersistentVolumes().Get(volumeID, metav1.GetOptions{})
+
 	if nodeAffinity == "true" {
-		oldPv, err := ns.client.CoreV1().PersistentVolumes().Get(volumeID, metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("NodePublishVolume: Get Persistent Volume(%s) Error: %s", volumeID, err.Error())
 			return nil, status.Error(codes.Internal, err.Error())
@@ -267,6 +273,28 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			}
 			pvClone := oldPv.DeepCopy()
 
+
+			var scheduleNodes []string
+			if oldPv.ObjectMeta.Annotations != nil {
+				scheduleNodesAnnotations := oldPv.ObjectMeta.Annotations[LvmScheduleNode]
+				json.Unmarshal([]byte(scheduleNodesAnnotations),&scheduleNodes)
+			}else{
+				scheduleNodes = make([]string,0)
+				pvClone.Annotations = make(map[string]string)
+			}
+			inScheduleNodes := false
+			for _,scheduleNode := range scheduleNodes {
+				if scheduleNode==ns.nodeID {
+					inScheduleNodes = true
+					break
+				}
+			}
+			if !inScheduleNodes {
+				scheduleNodes = append(scheduleNodes,ns.nodeID)
+			}
+			b,_ := json.Marshal(scheduleNodes)
+			pvClone.Annotations[LvmScheduleNode] = string(b)
+
 			// construct new persistent volume data
 			values := []string{ns.nodeID}
 			nSR := v1.NodeSelectorRequirement{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: values}
@@ -275,6 +303,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			nodeSelectorTerms := []v1.NodeSelectorTerm{nodeSelectorTerm}
 			required := v1.NodeSelector{NodeSelectorTerms: nodeSelectorTerms}
 			pvClone.Spec.NodeAffinity = &v1.VolumeNodeAffinity{Required: &required}
+
 			newData, err := json.Marshal(pvClone)
 			if err != nil {
 				log.Errorf("NodePublishVolume: Marshal New Persistent Volume(%s) Error: %s", volumeID, err.Error())
