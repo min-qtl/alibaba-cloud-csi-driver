@@ -3,21 +3,22 @@ kind: Deployment
 metadata:
   name: deployment-lvm
   labels:
-    app: nginx
+    app: deployment-lvm
 spec:
   selector:
     matchLabels:
-      app: nginx
+      app: deployment-lvm
   template:
     metadata:
       labels:
-        app: nginx
+        app: deployment-lvm
     spec:
+      imagePullSecrets:
+      - name: myregistrykey
       containers:
-      - name: nginx
-        image: nginx:1.7.9
-        ports:
-        - containerPort: 80
+      - name: busybox
+        image: registry-qcc.quantil.com/public/busybox:latest
+        command: ["sleep","3600"]
         volumeMounts:
           - name: lvm-pvc
             mountPath: "/data"

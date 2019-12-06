@@ -39,6 +39,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	k8smount "k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/util/resizefs"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 const (
@@ -69,7 +70,7 @@ const (
 	// DefaultNA default NodeAffinity
 	DefaultNA = "true"
 	// TopologyNodeKey tag
-	TopologyNodeKey = "topology.lvmplugin.csi.alibabacloud.com/hostname"
+	TopologyNodeKey = "topology.lvmplugin.csi.quantil.com/hostname"
 )
 
 type nodeServer struct {
@@ -99,6 +100,50 @@ func NewNodeServer(d *csicommon.CSIDriver, nodeID string) csi.NodeServer {
 		log.Fatalf("Error building kubernetes clientset: %s", err.Error())
 	}
 
+	persistentVolumeWatch,err := kubeClient.CoreV1().PersistentVolumes().Watch(metav1.ListOptions{Watch: true})
+	if err!=nil {
+		log.Fatalf("Error watch persistentVolume: %s", err.Error())
+	}
+	go  func() {
+		defer persistentVolumeWatch.Stop()
+		for {
+			select {
+			case evt, ok := <-persistentVolumeWatch.ResultChan():
+				if !ok {
+					return
+				}
+				if evt.Type == watch.Deleted {
+					switch evt.Object.(type) {
+					case *v1.PersistentVolume:
+						persistentVolume := evt.Object.(*v1.PersistentVolume)
+						persistentVolumeInThisNode := false
+						if persistentVolume.Spec.NodeAffinity != nil {
+							for _,nodeSelectorTerm := range persistentVolume.Spec.NodeAffinity.Required.NodeSelectorTerms {
+								for _,matchExpression := range nodeSelectorTerm.MatchExpressions {
+									if matchExpression.Key == TopologyNodeKey {
+										for _,matchValue := range matchExpression.Values {
+											persistentVolumeInThisNode = nodeID == matchValue
+										}
+									}
+								}
+							}
+
+							lvName := persistentVolume.Spec.CSI.VolumeHandle
+							vgName := persistentVolume.Spec.CSI.VolumeAttributes["vgName"]
+							if persistentVolumeInThisNode {
+								cmd := fmt.Sprintf("%s lvremove /dev/%s/%s -f", NsenterCmd, vgName, lvName)
+								_, err = utils.Run(cmd)
+								if err != nil {
+									log.Errorf("Delete lvm lv error: %s",err.Error())
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}()
+
 	return &nodeServer{
 		DefaultNodeServer: csicommon.NewDefaultNodeServer(d),
 		nodeID:            nodeID,
@@ -107,6 +152,10 @@ func NewNodeServer(d *csicommon.CSIDriver, nodeID string) csi.NodeServer {
 		client:            kubeClient,
 	}
 }
+
+
+
+
 
 func (ns *nodeServer) GetNodeID() string {
 	return ns.nodeID
