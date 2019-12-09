@@ -275,9 +275,12 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 
 			var scheduleNodes []string
-			if oldPv.ObjectMeta.Annotations != nil {
-				scheduleNodesAnnotations := oldPv.ObjectMeta.Annotations[LvmScheduleNode]
-				json.Unmarshal([]byte(scheduleNodesAnnotations),&scheduleNodes)
+			if pvClone.ObjectMeta.Annotations != nil {
+				if scheduleNodesAnnotations,found := pvClone.ObjectMeta.Annotations[LvmScheduleNode];found{
+					json.Unmarshal([]byte(scheduleNodesAnnotations),&scheduleNodes)
+				}else{
+					scheduleNodes = make([]string,0)
+				}
 			}else{
 				scheduleNodes = make([]string,0)
 				pvClone.Annotations = make(map[string]string)
