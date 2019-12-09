@@ -114,10 +114,9 @@ func NewNodeServer(d *csicommon.CSIDriver, nodeID string) csi.NodeServer {
 				if !ok {
 					return
 				}
-				if evt.Type == watch.Deleted {
-					switch evt.Object.(type) {
-					case *v1.PersistentVolume:
-						persistentVolume := evt.Object.(*v1.PersistentVolume)
+				persistentVolume := evt.Object.(*v1.PersistentVolume)
+				if persistentVolume.Spec.CSI!=nil && persistentVolume.Spec.CSI.Driver == driverName {
+					if evt.Type == watch.Deleted {
 						persistentVolumeInThisNode := false
 						if persistentVolume.Annotations!=nil {
 							if scheduleNodesAnnotation,found := persistentVolume.Annotations[LvmScheduleNode];found {
@@ -142,16 +141,13 @@ func NewNodeServer(d *csicommon.CSIDriver, nodeID string) csi.NodeServer {
 								}
 							}
 						}
-					}
-				}else if evt.Type == watch.Added {
-					switch evt.Object.(type) {
-					case *v1.PersistentVolume:
-						persistentVolume := evt.Object.(*v1.PersistentVolume)
+					}else if evt.Type == watch.Added {
 						oldData, err := json.Marshal(persistentVolume)
 						volumeID := persistentVolume.Name
 						if err != nil {
 							log.Errorf("Watch add persistentVolume error: Marshal old Persistent Volume(%s) Error: %s", volumeID, err.Error())
 						}else{
+							log.Println("------------------old pv data----------------------")
 							log.Printf("------------------%s----------------------",string(oldData))
 							if persistentVolume.Spec.NodeAffinity != nil {
 								persistentVolumeClone := persistentVolume.DeepCopy()
@@ -168,11 +164,12 @@ func NewNodeServer(d *csicommon.CSIDriver, nodeID string) csi.NodeServer {
 								}
 								b, _ := json.Marshal(scheduleNodes)
 								persistentVolumeClone.Annotations[LvmScheduleNode] = string(b)
-
 								newData, err := json.Marshal(persistentVolumeClone)
 								if err != nil {
 									log.Errorf("Watch add persistentVolume error: Marshal New Persistent Volume(%s) Error: %s", volumeID, err.Error())
 								} else {
+									log.Println("------------------new pv data----------------------")
+									log.Printf("------------------%s----------------------",string(newData))
 									patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, persistentVolumeClone)
 									if err != nil {
 										log.Errorf("Watch add persistentVolume error: CreateTwoWayMergePatch Volume(%s) Error: %s", volumeID, err.Error())
