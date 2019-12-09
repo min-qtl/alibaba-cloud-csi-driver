@@ -48,14 +48,14 @@ spec:
         - name: csi-provisioner
           image: registry.cn-hangzhou.aliyuncs.com/acs/csi-provisioner:v1.2.2
           args:
-            - "--provisioner=lvmplugin.csi.alibabacloud.com"
+            - "--provisioner=lvmplugin.csi.quantil.com"
             - "--csi-address=$(ADDRESS)"
             - "--volume-name-prefix=lvm"
             - "--feature-gates=Topology=True"
             - "--v=5"
           env:
             - name: ADDRESS
-              value: /var/lib/kubelet/plugins/lvmplugin.csi.alibabacloud.com/csi.sock
+              value: /var/lib/kubelet/plugins/lvmplugin.csi.quantil.com/csi.sock
             - name: KUBERNETES_SERVICE_HOST
               value: apiserver请求地址
             - name: KUBERNETES_SERVICE_PORT
@@ -63,11 +63,11 @@ spec:
           imagePullPolicy: "IfNotPresent"
           volumeMounts:
             - name: socket-dir
-              mountPath: /var/lib/kubelet/plugins/lvmplugin.csi.alibabacloud.com
+              mountPath: /var/lib/kubelet/plugins/lvmplugin.csi.quantil.com
       volumes:
         - name: socket-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/lvmplugin.csi.alibabacloud.com
+            path: /var/lib/kubelet/plugins/lvmplugin.csi.quantil.com
             type: DirectoryOrCreate
   updateStrategy:
     type: RollingUpdate

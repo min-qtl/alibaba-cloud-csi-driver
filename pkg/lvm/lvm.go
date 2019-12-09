@@ -35,7 +35,7 @@ type LVM struct {
 }
 
 const (
-	driverName = "lvmplugin.csi.alibabacloud.com"
+	driverName = "lvmplugin.csi.quantil.com"
 	csiVersion = "1.0.0"
 )
 

@@ -143,6 +143,50 @@ func NewNodeServer(d *csicommon.CSIDriver, nodeID string) csi.NodeServer {
 							}
 						}
 					}
+				}else if evt.Type == watch.Added {
+					switch evt.Object.(type) {
+					case *v1.PersistentVolume:
+						persistentVolume := evt.Object.(*v1.PersistentVolume)
+						oldData, err := json.Marshal(persistentVolume)
+						volumeID := persistentVolume.Name
+						if err != nil {
+							log.Errorf("Watch add persistentVolume error: Marshal old Persistent Volume(%s) Error: %s", volumeID, err.Error())
+						}else{
+							log.Printf("------------------%s----------------------",string(oldData))
+							if persistentVolume.Spec.NodeAffinity != nil {
+								persistentVolumeClone := persistentVolume.DeepCopy()
+								scheduleNodes := make([]string, 0)
+								for _, term := range persistentVolume.Spec.NodeAffinity.Required.NodeSelectorTerms {
+									for _, expression := range term.MatchExpressions {
+										if expression.Key == TopologyNodeKey {
+											scheduleNodes = append(scheduleNodes, expression.Values...)
+										}
+									}
+								}
+								if persistentVolumeClone.Annotations == nil {
+									persistentVolumeClone.Annotations = make(map[string]string)
+								}
+								b, _ := json.Marshal(scheduleNodes)
+								persistentVolumeClone.Annotations[LvmScheduleNode] = string(b)
+
+								newData, err := json.Marshal(persistentVolumeClone)
+								if err != nil {
+									log.Errorf("Watch add persistentVolume error: Marshal New Persistent Volume(%s) Error: %s", volumeID, err.Error())
+								} else {
+									patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, persistentVolumeClone)
+									if err != nil {
+										log.Errorf("Watch add persistentVolume error: CreateTwoWayMergePatch Volume(%s) Error: %s", volumeID, err.Error())
+									}else{
+										// Upgrade PersistentVolume with NodeAffinity
+										_, err = kubeClient.CoreV1().PersistentVolumes().Patch(volumeID, types.StrategicMergePatchType, patchBytes)
+										if err!=nil{
+											log.Errorf("Watch add persistentVolume error: Patch Volume(%s) Error: %s", volumeID, err.Error())
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -259,8 +303,9 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	// upgrade PV with NodeAffinity
 
 	oldPv, err := ns.client.CoreV1().PersistentVolumes().Get(volumeID, metav1.GetOptions{})
-
+	log.Println("------------start-------------")
 	if nodeAffinity == "true" {
+		log.Println("------------nodeAffinity true-------------")
 		if err != nil {
 			log.Errorf("NodePublishVolume: Get Persistent Volume(%s) Error: %s", volumeID, err.Error())
 			return nil, status.Error(codes.Internal, err.Error())
@@ -278,12 +323,15 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			if pvClone.ObjectMeta.Annotations != nil {
 				if scheduleNodesAnnotations,found := pvClone.ObjectMeta.Annotations[LvmScheduleNode];found{
 					json.Unmarshal([]byte(scheduleNodesAnnotations),&scheduleNodes)
+					log.Println("------------1-------------")
 				}else{
 					scheduleNodes = make([]string,0)
+					log.Println("------------2-------------")
 				}
 			}else{
 				scheduleNodes = make([]string,0)
 				pvClone.Annotations = make(map[string]string)
+				log.Println("------------3-------------")
 			}
 			inScheduleNodes := false
 			for _,scheduleNode := range scheduleNodes {
@@ -294,8 +342,11 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			}
 			if !inScheduleNodes {
 				scheduleNodes = append(scheduleNodes,ns.nodeID)
+				log.Println("------------4-------------")
 			}
 			b,_ := json.Marshal(scheduleNodes)
+
+			log.Printf("------------%s-------------",string(b))
 			pvClone.Annotations[LvmScheduleNode] = string(b)
 
 			// construct new persistent volume data
@@ -325,6 +376,8 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 			log.Infof("NodePublishVolume: upgrade Persistent Volume(%s) with nodeAffinity: %s", volumeID, ns.nodeID)
+		}else{
+			log.Println("------------oldPv.Spec.NodeAffinity != nil-------------")
 		}
 	}
 

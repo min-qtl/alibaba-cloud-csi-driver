@@ -56,7 +56,7 @@ spec:
       volumes:
         - name: socket-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/lvmplugin.csi.alibabacloud.com
+            path: /var/lib/kubelet/plugins/lvmplugin.csi.quantil.com
             type: DirectoryOrCreate
   updateStrategy:
     type: RollingUpdate

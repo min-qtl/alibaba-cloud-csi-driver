@@ -50,7 +50,7 @@ const (
 	// TypePluginCPFS CPFS type plugin
 	TypePluginCPFS = "cpfsplugin.csi.alibabacloud.com"
 	// TypePluginLVM LVM type plugin
-	TypePluginLVM = "lvmplugin.csi.alibabacloud.com"
+	TypePluginLVM = "lvmplugin.csi.quantil.com"
 )
 
 // BRANCH is CSI Driver Branch
