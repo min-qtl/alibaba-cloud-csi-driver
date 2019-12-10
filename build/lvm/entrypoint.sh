@@ -17,4 +17,4 @@ else
     fi
 fi
 
-/bin/plugin.csi.alibabacloud.com $@
+/bin/lvm.csi.quantil.com $@
