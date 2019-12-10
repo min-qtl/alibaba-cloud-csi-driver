@@ -23,12 +23,7 @@ import (
 	"path"
 	"strings"
 	"time"
-
-	"github.com/kubernetes-sigs/alibaba-cloud-csi-driver/pkg/cpfs"
-	"github.com/kubernetes-sigs/alibaba-cloud-csi-driver/pkg/disk"
-	"github.com/kubernetes-sigs/alibaba-cloud-csi-driver/pkg/lvm"
-	"github.com/kubernetes-sigs/alibaba-cloud-csi-driver/pkg/nas"
-	"github.com/kubernetes-sigs/alibaba-cloud-csi-driver/pkg/oss"
+	"quantil.com/qcc/lvm-csi-driver/pkg/lvm"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -38,17 +33,9 @@ func init() {
 
 const (
 	// LogfilePrefix prefix of log file
-	LogfilePrefix = "/var/log/alicloud/"
+	LogfilePrefix = "/var/log/quantil/"
 	// MBSIZE MB size
 	MBSIZE = 1024 * 1024
-	// TypePluginDISK DISK type plugin
-	TypePluginDISK = "diskplugin.csi.alibabacloud.com"
-	// TypePluginNAS NAS type plugin
-	TypePluginNAS = "nasplugin.csi.alibabacloud.com"
-	// TypePluginOSS OSS type plugin
-	TypePluginOSS = "ossplugin.csi.alibabacloud.com"
-	// TypePluginCPFS CPFS type plugin
-	TypePluginCPFS = "cpfsplugin.csi.alibabacloud.com"
 	// TypePluginLVM LVM type plugin
 	TypePluginLVM = "lvmplugin.csi.quantil.com"
 )
@@ -69,7 +56,7 @@ var (
 	endpoint        = flag.String("endpoint", "unix://tmp/csi.sock", "CSI endpoint")
 	nodeID          = flag.String("nodeid", "", "node id")
 	runAsController = flag.Bool("run-as-controller", false, "Only run as controller service")
-	driver          = flag.String("driver", TypePluginDISK, "CSI Driver")
+	driver          = flag.String("driver", TypePluginLVM, "CSI Driver")
 	rootDir         = flag.String("rootdir", "/var/lib/kubelet", "Kubernetes root directory")
 )
 
@@ -92,23 +79,9 @@ func main() {
 	drivername := *driver
 	log.Infof("CSI Driver Name: %s, %s, %s", drivername, *nodeID, *endpoint)
 	log.Infof("CSI Driver Branch: %s, Version: %s, Build time: %s\n", BRANCH, VERSION, BUILDTIME)
-	if drivername == TypePluginNAS {
-		driver := nas.NewDriver(*nodeID, *endpoint)
-		driver.Run()
-	} else if drivername == TypePluginOSS {
-		driver := oss.NewDriver(*nodeID, *endpoint)
-		driver.Run()
-	} else if drivername == TypePluginDISK {
-		driver := disk.NewDriver(*nodeID, *endpoint, *runAsController)
-		driver.Run()
-	} else if drivername == TypePluginLVM {
+	if drivername == TypePluginLVM {
 		driver := lvm.NewDriver(*nodeID, *endpoint)
 		driver.Run()
-	} else if drivername == TypePluginCPFS {
-		driver := cpfs.NewDriver(*nodeID, *endpoint)
-		driver.Run()
-	} else {
-		log.Errorf("CSI start failed, not support driver: %s", drivername)
 	}
 
 	os.Exit(0)
