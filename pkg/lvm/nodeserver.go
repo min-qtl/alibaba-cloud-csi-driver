@@ -131,7 +131,6 @@ func NewNodeServer(d *csicommon.CSIDriver, nodeID string) csi.NodeServer {
 							}
 
 							if persistentVolumeInThisNode {
-
 								lvName := persistentVolume.Spec.CSI.VolumeHandle
 								vgName := persistentVolume.Spec.CSI.VolumeAttributes["vgName"]
 								cmd := fmt.Sprintf("%s lvremove /dev/%s/%s -f", NsenterCmd, vgName, lvName)
@@ -142,22 +141,27 @@ func NewNodeServer(d *csicommon.CSIDriver, nodeID string) csi.NodeServer {
 							}
 						}
 					}else if evt.Type == watch.Added {
+						//TODO 这段代码需要写在控制器里 临时在这里实现
 						oldData, err := json.Marshal(persistentVolume)
 						volumeID := persistentVolume.Name
 						if err != nil {
 							log.Errorf("Watch add persistentVolume error: Marshal old Persistent Volume(%s) Error: %s", volumeID, err.Error())
 						}else{
-							log.Println("------------------old pv data----------------------")
-							log.Printf("------------------%s----------------------",string(oldData))
 							if persistentVolume.Spec.NodeAffinity != nil {
 								persistentVolumeClone := persistentVolume.DeepCopy()
 								scheduleNodes := make([]string, 0)
-								for _, term := range persistentVolume.Spec.NodeAffinity.Required.NodeSelectorTerms {
-									for _, expression := range term.MatchExpressions {
-										if expression.Key == TopologyNodeKey {
-											scheduleNodes = append(scheduleNodes, expression.Values...)
+								expression := persistentVolume.Spec.NodeAffinity.Required.NodeSelectorTerms[0].MatchExpressions[0]
+								if expression.Key == TopologyNodeKey {
+									if len(expression.Values) > 0 {
+										scheduleNodes = append(scheduleNodes, expression.Values...)
+										if expression.Values[0] != nodeID {
+											continue
 										}
+									}else{
+										continue
 									}
+								}else{
+									continue
 								}
 								if persistentVolumeClone.Annotations == nil {
 									persistentVolumeClone.Annotations = make(map[string]string)
@@ -168,8 +172,6 @@ func NewNodeServer(d *csicommon.CSIDriver, nodeID string) csi.NodeServer {
 								if err != nil {
 									log.Errorf("Watch add persistentVolume error: Marshal New Persistent Volume(%s) Error: %s", volumeID, err.Error())
 								} else {
-									log.Println("------------------new pv data----------------------")
-									log.Printf("------------------%s----------------------",string(newData))
 									patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, persistentVolumeClone)
 									if err != nil {
 										log.Errorf("Watch add persistentVolume error: CreateTwoWayMergePatch Volume(%s) Error: %s", volumeID, err.Error())
